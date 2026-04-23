@@ -1,2 +1,17 @@
 node_modules/
 .env
+.DS_Store
+dist/
+dist-ssr/
+*.local
+faiss_store/
+
+# Client
+client/node_modules/
+client/dist/
+client/.env
+
+# Server
+server/node_modules/
+server/.env
+server/faiss_store/
