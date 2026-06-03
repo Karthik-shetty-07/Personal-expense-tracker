@@ -1,8 +1,7 @@
 require('dotenv').config({ path: '../.env' });
 
 const mongoose = require('mongoose');
-const User = require('./models/User');
-const Transaction = require('./models/Transaction');
+const { User, Transaction, connectDB } = require('./db');
 
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -10,16 +9,6 @@ if (!MONGO_URI) {
   console.error("❌ MONGO_URI is not defined in .env");
   process.exit(1);
 }
-
-const connectDB = async () => {
-  try {
-    await mongoose.connect(MONGO_URI);
-    console.log('✅ MongoDB (Atlas) Connected');
-  } catch (err) {
-    console.error('❌ DB Connection Error:', err.message);
-    process.exit(1);
-  }
-};
 
 const seedData = async () => {
   await connectDB();

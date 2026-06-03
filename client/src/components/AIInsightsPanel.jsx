@@ -103,13 +103,6 @@ export default function AIInsightsPanel() {
     }
   };
 
-  useEffect(() => {
-    // Initial fetch if empty
-    if (insights.length === 0) {
-      fetchProactiveInsights();
-    }
-  }, []);
-
   return (
     <div className="bg-gradient-to-br from-fin-surface to-[#0f172a] rounded-2xl border border-fin-accent/20 p-6 relative overflow-hidden h-full flex flex-col">
       <div className="absolute top-0 right-0 w-64 h-64 bg-fin-accent/10 rounded-bl-full blur-3xl pointer-events-none"></div>
@@ -124,7 +117,7 @@ export default function AIInsightsPanel() {
           disabled={loading || isStreaming}
           className="text-xs font-medium bg-fin-accent/10 hover:bg-fin-accent/20 text-fin-accent px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
         >
-          {loading ? 'Analyzing...' : 'Generate Proactive Insight'}
+          {loading ? 'Analyzing...' : 'Recommend Advice'}
         </button>
       </div>
 
@@ -132,7 +125,7 @@ export default function AIInsightsPanel() {
         {insights.length === 0 && !loading ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 text-center px-4">
             <MessageSquareText className="w-10 h-10 mb-3 opacity-20" />
-            <p className="text-sm">Ask a question about your spending or click generate to get proactive insights.</p>
+            <p className="text-sm">Ask a question about your spending or click "Recommend Advice" to get financial insights.</p>
           </div>
         ) : (
           insights.map((insight, idx) => (
