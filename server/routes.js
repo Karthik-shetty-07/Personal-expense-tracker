@@ -117,7 +117,7 @@ router.post('/auth/login', validate(loginSchema), async (req, res, next) => {
     }
 
     // Look for user email and explicitly select password to compare
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email }).select('+password');
 
     // In fallback mode, auto-register any user on login attempt for a frictionless setup
     const { isFallbackActive } = require('./db');
