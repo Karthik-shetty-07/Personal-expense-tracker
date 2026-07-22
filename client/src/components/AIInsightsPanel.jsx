@@ -3,6 +3,52 @@ import { Sparkles, Loader2, MessageSquareText, Send } from 'lucide-react';
 import api from '../services/api';
 import useStore from '../store/useStore';
 
+function renderBoldText(text) {
+  if (!text) return null;
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="font-bold text-white">{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
+function FormattedMessage({ text, isStreaming }) {
+  if (!text) return isStreaming ? <span className="inline-block w-1.5 h-4 bg-fin-accent animate-pulse align-middle"></span> : null;
+
+  const lines = text.split('\n');
+  return (
+    <div className="space-y-1.5 leading-relaxed">
+      {lines.map((line, idx) => {
+        if (!line.trim()) return <div key={idx} className="h-1" />;
+
+        if (line.startsWith('### ') || line.startsWith('## ') || line.startsWith('# ')) {
+          const headerText = line.replace(/^#+\s*/, '');
+          return (
+            <h4 key={idx} className="font-semibold text-white text-base mt-2 mb-1">
+              {renderBoldText(headerText)}
+            </h4>
+          );
+        }
+
+        const isBullet = line.trim().startsWith('- ') || line.trim().startsWith('* ');
+        const cleanLine = isBullet ? line.trim().replace(/^[-*]\s*/, '') : line;
+
+        return (
+          <div key={idx} className={isBullet ? 'flex items-start gap-2 pl-2' : ''}>
+            {isBullet && <span className="text-fin-accent font-bold select-none">•</span>}
+            <p className={isBullet ? 'flex-1' : ''}>
+              {renderBoldText(cleanLine)}
+            </p>
+          </div>
+        );
+      })}
+      {isStreaming && <span className="ml-1 inline-block w-1.5 h-4 bg-fin-accent animate-pulse align-middle"></span>}
+    </div>
+  );
+}
+
 export default function AIInsightsPanel() {
   const insights = useStore((state) => state.insights);
   const setInsights = useStore((state) => state.setInsights);
@@ -52,7 +98,8 @@ export default function AIInsightsPanel() {
 
     try {
       const token = useStore.getState().token;
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/ai/ask`, {
+      const baseUrl = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${baseUrl}/ai/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,10 +180,13 @@ export default function AIInsightsPanel() {
               <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                 insight.type === 'user' 
                   ? 'bg-fin-accent text-white' 
-                  : 'bg-gray-800/50 text-gray-200 border border-gray-700 whitespace-pre-wrap leading-relaxed'
+                  : 'bg-gray-800/60 text-gray-200 border border-gray-700/80 leading-relaxed'
               }`}>
-                {insight.text}
-                {insight.isStreaming && <span className="ml-1 inline-block w-1.5 h-4 bg-fin-accent animate-pulse align-middle"></span>}
+                {insight.type === 'user' ? (
+                  insight.text
+                ) : (
+                  <FormattedMessage text={insight.text} isStreaming={insight.isStreaming} />
+                )}
               </div>
             </div>
           ))

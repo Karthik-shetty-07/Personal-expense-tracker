@@ -2,26 +2,48 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
-// 📂 Local database file path
-const DB_FILE = path.join(__dirname, 'database.json');
+// 📂 Local database file path with serverless fallback
+let DB_FILE = path.join(__dirname, 'database.json');
+let inMemoryDB = { users: [], transactions: [] };
 let isFallbackActive = false;
 
 // 📖 Helper: Read JSON database
 const readLocalDB = () => {
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify({ users: [], transactions: [] }, null, 2));
-  }
   try {
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+    if (fs.existsSync(DB_FILE)) {
+      return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+    }
   } catch (err) {
-    return { users: [], transactions: [] };
+    // If original fails, fallback to temp file or memory
   }
+  
+  const tmpFile = path.join(os.tmpdir(), 'expense_tracker_db.json');
+  try {
+    if (fs.existsSync(tmpFile)) {
+      return JSON.parse(fs.readFileSync(tmpFile, 'utf-8'));
+    }
+  } catch (e) {}
+
+  return inMemoryDB;
 };
 
 // ✍️ Helper: Write JSON database
 const writeLocalDB = (data) => {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+  inMemoryDB = data;
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+    return;
+  } catch (err) {
+    // EROFS / read-only filesystem on Vercel
+    try {
+      const tmpFile = path.join(os.tmpdir(), 'expense_tracker_db.json');
+      fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2));
+    } catch (e) {
+      // Memory store is already updated
+    }
+  }
 };
 
 // 🔌 Step 1: Connect to the database with automatic fallback!

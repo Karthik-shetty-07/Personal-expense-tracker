@@ -81,134 +81,155 @@ const transactionToText = (tx) => {
 
 // Gathers the user's spending data and structures it for the AI to analyze
 const buildFinancialContext = async (userId, question = '') => {
-  const userObjectId = new mongoose.Types.ObjectId(userId);
+  let userObjectId;
+  try {
+    userObjectId = new mongoose.Types.ObjectId(userId);
+  } catch (e) {
+    userObjectId = userId;
+  }
   const queryFilter = { user: userObjectId };
 
-  // If user asks a question, filter our transactions to only send relevant ones!
-  const q = question.toLowerCase();
-  if (q) {
-    if (q.includes('food') || q.includes('eat') || q.includes('restaurant')) {
-      queryFilter.category = { $regex: /food|dining/i };
-    }
-    if (q.includes('income') || q.includes('earn') || q.includes('salary')) {
-      queryFilter.type = 'income';
-    }
-    if (q.includes('month') || q.includes('recent')) {
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0,0,0,0);
-      queryFilter.date = { $gte: startOfMonth };
-    }
-  }
-
-  // Load up to 100 transactions to keep memory clean
+  // Load transactions for user
   const transactions = await Transaction.find(queryFilter)
     .sort({ date: -1 })
-    .limit(100)
     .lean();
 
-  if (!transactions.length) {
-    return { context: null, transactions: [] };
+  if (!transactions || !transactions.length) {
+    return {
+      context: `User Financial Summary:\n- Total Income: ₹0.00\n- Total Expense: ₹0.00\n- Net Savings: ₹0.00\n- Total Transactions: 0\n\nNo transactions logged yet.`,
+      transactions: []
+    };
   }
 
   let totalIncome = 0;
   let totalExpenses = 0;
   const categoryTotals = {};
+  const categoryCounts = {};
 
   transactions.forEach(tx => {
+    const amt = Number(tx.amount) || 0;
     if (tx.type === 'income') {
-      totalIncome += tx.amount;
+      totalIncome += amt;
     } else {
-      totalExpenses += tx.amount;
+      totalExpenses += amt;
       const cat = tx.category || 'Uncategorized';
-      categoryTotals[cat] = (categoryTotals[cat] || 0) + tx.amount;
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + amt;
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
     }
   });
 
-  const topCategories = Object.entries(categoryTotals)
+  const categoryBreakdownText = Object.entries(categoryTotals)
     .sort(([, a], [, b]) => b - a)
-    .slice(0, 3)
-    .map(([cat, total]) => `  - ${cat}: ₹${total.toFixed(2)}`)
+    .map(([cat, total]) => `  - ${cat}: ₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (${categoryCounts[cat]} item${categoryCounts[cat] > 1 ? 's' : ''})`)
     .join('\n');
 
   const recentTxText = transactions
-    .slice(0, 10)
-    .map((tx, i) => `  ${i + 1}. ${transactionToText(tx)}`)
+    .slice(0, 50)
+    .map((tx, i) => `  ${i + 1}. [${tx.type.toUpperCase()}] ₹${Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })} | Category: ${tx.category || 'Uncategorized'} | Desc: ${tx.description || 'N/A'} | Date: ${new Date(tx.date).toLocaleDateString('en-IN')}`)
     .join('\n');
 
   const context = `User Financial Summary:
-- Total Income: ₹${totalIncome.toFixed(2)}
-- Total Expense: ₹${totalExpenses.toFixed(2)}
-- Net Savings: ₹${(totalIncome - totalExpenses).toFixed(2)}
+- Total Income: ₹${totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+- Total Expense: ₹${totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+- Net Savings: ₹${(totalIncome - totalExpenses).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+- Total Transactions: ${transactions.length}
 
-Top spending categories:
-${topCategories || '  None'}
+Expense Breakdown by Category:
+${categoryBreakdownText || '  None'}
 
-Recent relevant transactions:
+Recent Transactions (Up to 50):
 ${recentTxText || '  None'}`;
 
   return { context, transactions };
 };
 
-const generateMockAIResponse = (context, userQuery = null) => {
+const generateMockAIResponse = (context, userQuery = null, transactions = []) => {
   let income = 0;
   let expense = 0;
   
   if (context) {
-    const incomeMatch = context.match(/Total Income: ₹([\d.]+)/);
-    const expenseMatch = context.match(/Total Expense: ₹([\d.]+)/);
-    if (incomeMatch) income = parseFloat(incomeMatch[1]);
-    if (expenseMatch) expense = parseFloat(expenseMatch[1]);
+    const incomeMatch = context.match(/Total Income: ₹([\d,.]+)/);
+    const expenseMatch = context.match(/Total Expense: ₹([\d,.]+)/);
+    if (incomeMatch) income = parseFloat(incomeMatch[1].replace(/,/g, '')) || 0;
+    if (expenseMatch) expense = parseFloat(expenseMatch[1].replace(/,/g, '')) || 0;
   }
 
   const netSavings = income - expense;
-  
+
   if (userQuery) {
     const q = userQuery.toLowerCase();
-    if (q.includes('food') || q.includes('eat') || q.includes('starbucks') || q.includes('coffee')) {
-      return `🍕 **Food & Drink Review:** Based on your logs, you've spent some money on food and drinks. Try cooking at home or preparing your own coffee to save up to 40% this month!`;
+
+    // Check highest expense
+    if (q.includes('highest') || q.includes('biggest') || q.includes('max') || q.includes('most expensive')) {
+      const expenses = transactions.filter(t => t.type === 'expense');
+      if (expenses.length > 0) {
+        const top = [...expenses].sort((a, b) => Number(b.amount) - Number(a.amount))[0];
+        return `🏆 **Highest Expense:** Your single largest expense was **₹${Number(top.amount).toLocaleString('en-IN')}** for **"${top.description}"** (${top.category}) on ${new Date(top.date).toLocaleDateString('en-IN')}.`;
+      }
+      return `ℹ️ You don't have any logged expenses yet.`;
     }
-    if (q.includes('save') || q.includes('budget') || q.includes('reduce')) {
-      return `💡 **Saving Strategy:** Your current net savings are ₹${netSavings.toLocaleString('en-IN')}. To boost this, try setting a weekly spending limit of ₹1,000 for leisure and entertainment.`;
+
+    // Check specific categories (e.g. food, transport, shopping, housing)
+    const categoryKeywords = ['food', 'dining', 'eat', 'groceries', 'transport', 'uber', 'cab', 'shopping', 'entertainment', 'housing', 'utilities', 'health', 'education'];
+    const matchedKeyword = categoryKeywords.find(k => q.includes(k));
+    if (matchedKeyword) {
+      const regex = new RegExp(matchedKeyword, 'i');
+      const matchingTx = transactions.filter(t => regex.test(t.category) || regex.test(t.description));
+      const totalSpent = matchingTx.reduce((sum, t) => sum + Number(t.amount), 0);
+      if (matchingTx.length > 0) {
+        return `📊 **${matchedKeyword.toUpperCase()} Breakdown:**\n- Total spent: **₹${totalSpent.toLocaleString('en-IN', { minimumFractionDigits: 2 })}** across **${matchingTx.length}** transaction(s).\n- Recent item: "${matchingTx[0].description}" (₹${Number(matchingTx[0].amount).toLocaleString('en-IN')}).`;
+      } else {
+        return `ℹ️ No transactions matching "${matchedKeyword}" were found in your record.`;
+      }
     }
-    if (q.includes('income') || q.includes('salary') || q.includes('earn')) {
-      return `💰 **Income Overview:** You earned ₹${income.toLocaleString('en-IN')} recently. Consistent income streams are great! Keep tracking to plan your next investments.`;
+
+    // Check income / earnings
+    if (q.includes('income') || q.includes('salary') || q.includes('earn') || q.includes('deposit')) {
+      const incomeTx = transactions.filter(t => t.type === 'income');
+      return `💰 **Income Overview:**\n- Total Income: **₹${income.toLocaleString('en-IN', { minimumFractionDigits: 2 })}**\n- Total Income Transactions: **${incomeTx.length}**`;
     }
-    return `🤖 **Mock AI Financial Advisor:** You asked: "${userQuery}". Since the Groq API is in sandbox/fallback mode, here is some general advice: Your net savings are ₹${netSavings.toLocaleString('en-IN')}. Try categorized budgeting to keep expenses in check!`;
+
+    // Check savings / balance
+    if (q.includes('save') || q.includes('saving') || q.includes('balance') || q.includes('net')) {
+      return `💡 **Net Financial Position:**\n- Total Income: **₹${income.toLocaleString('en-IN', { minimumFractionDigits: 2 })}**\n- Total Expense: **₹${expense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}**\n- Current Net Balance: **₹${netSavings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}**`;
+    }
+
+    return `🤖 **AI Financial Assistant:**\nBased on your records:\n- Total Income: **₹${income.toLocaleString('en-IN', { minimumFractionDigits: 2 })}**\n- Total Expenses: **₹${expense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}**\n- Net Balance: **₹${netSavings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}**\n- Recorded Transactions: **${transactions.length}**`;
   }
-  
-  const ratio = income > 0 ? (expense / income) * 100 : 100;
-  let summary = `✨ **AI Spending Insights (Simulation)** ✨\n\n`;
+
+  const ratio = income > 0 ? (expense / income) * 100 : (expense > 0 ? 100 : 0);
+  let summary = `✨ **AI Spending Insights** ✨\n\n`;
   if (ratio > 80) {
-    summary += `⚠️ **High Spending Alert:** You are spending **${ratio.toFixed(1)}%** of your total income. Try pausing non-essential shopping to build a bigger emergency fund!\n\n`;
+    summary += `⚠️ **High Expense Warning:** You are spending **${ratio.toFixed(1)}%** of your total income. Consider reviewing discretionary expenses to boost your savings.\n\n`;
   } else {
-    summary += `🎉 **Healthy Budgeting:** You are saving a solid portion of your income! Keep it up.\n\n`;
+    summary += `🎉 **Great Financial Health:** Your expenses are **${ratio.toFixed(1)}%** of your income. You are in a strong position to build long-term savings!\n\n`;
   }
-  summary += `📌 **Action Steps:**\n`;
-  summary += `1. Limit dining out this weekend.\n`;
-  summary += `2. Put ₹2,000 into a high-yield savings account if possible.\n`;
-  summary += `3. Track every small transaction to avoid subscription leaks!`;
-  
+  summary += `📌 **Quick Financial Summary:**\n`;
+  summary += `- **Total Income:** ₹${income.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n`;
+  summary += `- **Total Expense:** ₹${expense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}\n`;
+  summary += `- **Net Balance:** ₹${netSavings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+
   return summary;
 };
 
 // Requests response from Groq Llama-3 AI model
-const generateInsightsFromContext = async (context, userQuery = null) => {
+const generateInsightsFromContext = async (context, userQuery = null, transactions = []) => {
   const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey || apiKey === 'your_groq_api_key') {
     return {
-      insights: generateMockAIResponse(context, userQuery),
-      model: `${GROQ_MODEL} (Mock Fallback)`,
+      insights: generateMockAIResponse(context, userQuery, transactions),
+      model: 'Local Smart Financial Advisor (Fallback)',
     };
   }
 
-  const systemPrompt = `You are a smart financial assistant analyzing a user's expense data.
-Provide concise insights, actionable advice, and anomaly detection if possible.`;
+  const systemPrompt = `You are an expert personal financial AI assistant analyzing a user's exact expense data.
+Provide accurate, direct answers to the user's specific question using ONLY the provided financial summary and transaction list.
+State exact Rupee amounts (₹), exact category totals, and specific transaction descriptions. Format your response with markdown bullet points and bold key figures.`;
 
   const userMessage = userQuery
-    ? `Context:\n${context}\n\nQuestion: ${userQuery}`
-    : `Context:\n${context}\n\nPlease analyze my spending and provide actionable insights.`;
+    ? `Financial Data Context:\n${context}\n\nUser Question: ${userQuery}`
+    : `Financial Data Context:\n${context}\n\nPlease analyze my spending and provide actionable financial insights.`;
 
   try {
     const response = await fetch(GROQ_API_URL, {
@@ -223,28 +244,31 @@ Provide concise insights, actionable advice, and anomaly detection if possible.`
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.3,
+        temperature: 0.2,
         max_tokens: 1024,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Groq API returned ${response.status}`);
+      throw new Error(`Groq API returned status ${response.status}`);
     }
 
     const data = await response.json();
     return {
-      insights: data.choices?.[0]?.message?.content || 'No insights generated.',
+      insights: data.choices?.[0]?.message?.content || 'No response generated.',
       model: data.model,
     };
   } catch (error) {
-    console.error('[AI] Error:', error.message);
-    throw new Error('Failed to generate insights from Groq.');
+    console.error('[AI] Fallback to local advisor:', error.message);
+    return {
+      insights: generateMockAIResponse(context, userQuery, transactions),
+      model: 'Local Smart Financial Advisor',
+    };
   }
 };
 
 // Streams the AI output chunk by chunk (typewriter style) for a cooler chat experience
-const streamInsightsFromContext = async (context, userQuery, res) => {
+const streamInsightsFromContext = async (context, userQuery, res, transactions = []) => {
   const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey || apiKey === 'your_groq_api_key') {
@@ -254,7 +278,7 @@ const streamInsightsFromContext = async (context, userQuery, res) => {
       'Connection': 'keep-alive',
     });
 
-    const mockResponse = generateMockAIResponse(context, userQuery);
+    const mockResponse = generateMockAIResponse(context, userQuery, transactions);
     
     // Simulate streaming by splitting text into small blocks
     const tokens = mockResponse.match(/[\s\S]{1,8}/g) || [mockResponse];
@@ -264,7 +288,7 @@ const streamInsightsFromContext = async (context, userQuery, res) => {
       if (index < tokens.length) {
         res.write(`data: ${JSON.stringify({ text: tokens[index] })}\n\n`);
         index++;
-        setTimeout(sendNextToken, 20); // 20ms delay per token
+        setTimeout(sendNextToken, 15);
       } else {
         res.write('data: [DONE]\n\n');
         res.end();
@@ -274,9 +298,11 @@ const streamInsightsFromContext = async (context, userQuery, res) => {
     return;
   }
 
-  const systemPrompt = `You are a smart financial assistant analyzing a user's expense data.
-Provide concise insights, actionable advice, and anomaly detection if possible.`;
-  const userMessage = `Context:\n${context}\n\nQuestion: ${userQuery}`;
+  const systemPrompt = `You are an expert personal financial AI assistant analyzing a user's exact expense data.
+Provide accurate, direct answers to the user's specific question using ONLY the provided financial summary and transaction list.
+State exact Rupee amounts (₹), exact category totals, and specific transaction descriptions. Format your response cleanly with markdown.`;
+
+  const userMessage = `Financial Data Context:\n${context}\n\nUser Question: ${userQuery}`;
 
   try {
     const response = await fetch(GROQ_API_URL, {
@@ -291,14 +317,14 @@ Provide concise insights, actionable advice, and anomaly detection if possible.`
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        temperature: 0.3,
+        temperature: 0.2,
         max_tokens: 1024,
         stream: true,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Groq API returned ${response.status}`);
+      throw new Error(`Groq API error ${response.status}`);
     }
 
     res.writeHead(200, {
@@ -344,8 +370,9 @@ Provide concise insights, actionable advice, and anomaly detection if possible.`
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (error) {
-    console.error('[AI Stream] Error:', error.message);
-    res.write(`data: ${JSON.stringify({ text: '❌ Failed to stream response from AI.' })}\n\n`);
+    console.error('[AI Stream] Fallback:', error.message);
+    const mockResponse = generateMockAIResponse(context, userQuery, transactions);
+    res.write(`data: ${JSON.stringify({ text: mockResponse })}\n\n`);
     res.write('data: [DONE]\n\n');
     res.end();
   }

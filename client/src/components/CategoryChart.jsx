@@ -49,7 +49,7 @@ export default function CategoryChart() {
               ))}
             </Pie>
             <Tooltip 
-              formatter={(value) => `$${Number(value).toFixed(2)}`}
+              formatter={(value) => `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
               contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', borderRadius: '0.5rem', color: '#f9fafb' }}
               itemStyle={{ color: '#f9fafb' }}
             />

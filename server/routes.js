@@ -103,31 +103,8 @@ router.post('/auth/login', validate(loginSchema), async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Direct hardcoded dummy user fallback (works in any mode)
-    if (email === 'admin@example.com' && password === 'password') {
-      return res.json({
-        success: true,
-        data: {
-          _id: 'dummy_admin_id_12345',
-          name: 'Dummy Admin',
-          email: 'admin@example.com',
-          token: generateToken('dummy_admin_id_12345')
-        }
-      });
-    }
-
     // Look for user email and explicitly select password to compare
-    let user = await User.findOne({ email }).select('+password');
-
-    // In fallback mode, auto-register any user on login attempt for a frictionless setup
-    const { isFallbackActive } = require('./db');
-    if (!user && isFallbackActive()) {
-      user = await User.create({
-        name: email.split('@')[0],
-        email,
-        password
-      });
-    }
+    const user = await User.findOne({ email }).select('+password');
 
     if (user && (await user.matchPassword(password))) {
       res.json({
@@ -241,11 +218,8 @@ router.delete('/transactions/:id', protect, async (req, res, next) => {
 router.route('/ai/insights')
   .get(protect, async (req, res, next) => {
     try {
-      const { context } = await buildFinancialContext(req.user.id);
-      if (!context) {
-        return res.status(200).json({ success: true, data: { insights: 'No financial data available yet.' } });
-      }
-      const result = await generateInsightsFromContext(context);
+      const { context, transactions } = await buildFinancialContext(req.user.id);
+      const result = await generateInsightsFromContext(context, null, transactions);
       res.status(200).json({ success: true, data: { insights: result.insights, model: result.model } });
     } catch (error) {
       next(error);
@@ -253,11 +227,8 @@ router.route('/ai/insights')
   })
   .post(protect, async (req, res, next) => {
     try {
-      const { context } = await buildFinancialContext(req.user.id);
-      if (!context) {
-        return res.status(200).json({ success: true, data: { insights: 'No financial data available yet.' } });
-      }
-      const result = await generateInsightsFromContext(context);
+      const { context, transactions } = await buildFinancialContext(req.user.id);
+      const result = await generateInsightsFromContext(context, null, transactions);
       res.status(200).json({ success: true, data: { insights: result.insights, model: result.model } });
     } catch (error) {
       next(error);
@@ -269,11 +240,8 @@ router.route('/ai/insights')
 router.post('/ai/query', protect, validate(querySchema), async (req, res, next) => {
   try {
     const { question } = req.body;
-    const { context } = await buildFinancialContext(req.user.id, question);
-    if (!context) {
-      return res.status(200).json({ success: true, data: { answer: 'No financial data available yet.' } });
-    }
-    const result = await generateInsightsFromContext(context, question);
+    const { context, transactions } = await buildFinancialContext(req.user.id, question);
+    const result = await generateInsightsFromContext(context, question, transactions);
     res.status(200).json({ success: true, data: { answer: result.insights, model: result.model } });
   } catch (error) {
     next(error);
@@ -282,24 +250,14 @@ router.post('/ai/query', protect, validate(querySchema), async (req, res, next) 
 
 // ⚡ ASK AI STREAM (REAL-TIME STREAMING CHATBOT)
 // POST /api/ai/ask
-router.post('/ai/ask', protect, async (req, res, next) => {
+router.post('/api/ai/ask', protect, async (req, res, next) => {
   try {
     const { query } = req.body;
     if (!query) {
       return res.status(400).json({ success: false, message: 'Query is required.' });
     }
-    const { context } = await buildFinancialContext(req.user.id, query);
-    if (!context) {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      });
-      res.write(`data: ${JSON.stringify({ text: 'No financial data available yet.' })}\n\n`);
-      res.write('data: [DONE]\n\n');
-      return res.end();
-    }
-    await streamInsightsFromContext(context, query, res);
+    const { context, transactions } = await buildFinancialContext(req.user.id, query);
+    await streamInsightsFromContext(context, query, res, transactions);
   } catch (error) {
     next(error);
   }

@@ -37,7 +37,7 @@ app.use(helmet());
 
 // 🤝 CORS: Allows frontend web app to talk to backend
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: process.env.CLIENT_URL || true,
   credentials: true
 }));
 
@@ -86,19 +86,19 @@ if (process.env.NODE_ENV === 'production') {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Create the HTTP server wrapper
-const server = http.createServer(app);
+// Export express app for Vercel serverless functions
+module.exports = app;
 
-// Initialize Socket.io WebSockets
-initSocket(server);
+// Start server listening in non-Vercel environments
+if (!process.env.VERCEL) {
+  const server = http.createServer(app);
+  initSocket(server);
+  server.listen(PORT, () => {
+    console.log(`🚀 Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  });
 
-// Start listening for web visitors!
-server.listen(PORT, () => {
-  console.log(`🚀 Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-});
-
-// If there's an unhandled promise crash, shut down gracefully
-process.on('unhandledRejection', (err) => {
-  console.log(`💥 Critical Unhandled Rejection: ${err.message}`);
-  server.close(() => process.exit(1));
-});
+  process.on('unhandledRejection', (err) => {
+    console.log(`💥 Critical Unhandled Rejection: ${err.message}`);
+    server.close(() => process.exit(1));
+  });
+}
