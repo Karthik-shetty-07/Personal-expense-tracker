@@ -1,5 +1,9 @@
 node_modules/
 .env
+.env.local
+.env.*
+!.env.example
+!.env.sample
 .DS_Store
 dist/
 dist-ssr/
@@ -10,10 +14,17 @@ faiss_store/
 client/node_modules/
 client/dist/
 client/.env
+client/.env.local
+client/.env.*
+!client/.env.example
 
 # Server
 server/node_modules/
 server/.env
+server/.env.local
+server/.env.*
+!server/.env.example
+!server/.env.sample
 server/faiss_store/
 server/database.json
 database.json
