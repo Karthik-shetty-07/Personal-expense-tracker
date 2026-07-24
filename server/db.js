@@ -202,8 +202,9 @@ const MockUser = {
   findOne: (query) => {
     const promise = (async () => {
       const db = readLocalDB();
-      const email = query.email;
-      const user = db.users.find(u => u.email === email);
+      const email = query?.email;
+      const id = query?._id;
+      const user = db.users.find(u => (email ? u.email === email : false) || (id ? String(u._id) === String(id) : false));
       if (!user) return null;
       return {
         ...user,
@@ -238,6 +239,13 @@ const MockUser = {
   },
   create: async (userData) => {
     const db = readLocalDB();
+    const existingUser = db.users.find(u => u.email === userData.email);
+    if (existingUser) {
+      const error = new Error('User already exists!');
+      error.code = 11000;
+      throw error;
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(userData.password, salt);
 

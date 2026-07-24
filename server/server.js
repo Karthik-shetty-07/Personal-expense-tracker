@@ -5,7 +5,11 @@
 // node starts this file. It sets up express, security guards, mounts
 // our routes.js, initializes websocket sockets, and listens to the port!
 
-require('dotenv').config({ path: '../.env' }); // Load root .env file
+const path = require('path');
+
+// Load environment variables from the server folder first, then fall back to the repo root.
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const http = require('http');
 const express = require('express');
@@ -16,7 +20,6 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const compression = require('compression');
-const path = require('path');
 
 // Import our new unified database, routes, and middleware!
 const { connectDB } = require('./db');

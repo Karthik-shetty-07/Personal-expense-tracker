@@ -250,7 +250,7 @@ router.post('/ai/query', protect, validate(querySchema), async (req, res, next) 
 
 // ⚡ ASK AI STREAM (REAL-TIME STREAMING CHATBOT)
 // POST /api/ai/ask
-router.post('/api/ai/ask', protect, async (req, res, next) => {
+router.post('/ai/ask', protect, async (req, res, next) => {
   try {
     const { query } = req.body;
     if (!query) {

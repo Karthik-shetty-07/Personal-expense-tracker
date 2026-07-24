@@ -1,80 +1,68 @@
-require('dotenv').config({ path: '../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-const mongoose = require('mongoose');
 const { User, Transaction, connectDB } = require('./db');
-
-const MONGO_URI = process.env.MONGO_URI;
-
-if (!MONGO_URI) {
-  console.error("❌ MONGO_URI is not defined in .env");
-  process.exit(1);
-}
 
 const seedData = async () => {
   await connectDB();
 
   try {
-    console.log("🧹 Clearing old data...");
+    console.log('🧹 Clearing old data...');
     await User.deleteMany();
     await Transaction.deleteMany();
 
-    console.log("👤 Creating demo user...");
-    const user = await User.create({
-      name: 'Demo User',
-      email: 'demo@example.com',
-      password: 'password123'
-    });
+    const users = [
+      { name: 'Ava Chen', email: 'ava@example.com', password: 'Password123!' },
+      { name: 'Marcus Lee', email: 'marcus@example.com', password: 'Password123!' },
+      { name: 'Test User', email: 'testuser@example.com', password: 'Secret123' }
+    ];
 
-    const categories = ['Food & Drink', 'Transportation', 'Shopping', 'Entertainment', 'Housing'];
-    const now = new Date();
-    const transactions = [];
-
-    console.log("📊 Generating transactions...");
-
-    for (let i = 0; i < 30; i++) {
-      const daysAgo = Math.floor(Math.random() * 60);
-      const date = new Date(now.getTime() - daysAgo * 86400000);
-
-      const isIncome = Math.random() > 0.8;
-      const amount = isIncome
-        ? 5000 + Math.random() * 5000
-        : 50 + Math.random() * 500;
-
-      let category, description;
-
-      if (isIncome) {
-        category = 'Income';
-        description = 'Salary/Freelance';
-      } else {
-        category = categories[Math.floor(Math.random() * categories.length)];
-
-        const descriptions = {
-          'Food & Drink': ['Starbucks', 'Grocery Store'],
-          'Transportation': ['Uber', 'Gas Station'],
-          'Shopping': ['Amazon'],
-          'Entertainment': ['Netflix Subscription'],
-          'Housing': ['Rent/Utilities']
-        };
-
-        const options = descriptions[category];
-        description = options[Math.floor(Math.random() * options.length)];
-      }
-
-      transactions.push({
-        user: user._id,
-        amount: Number(amount.toFixed(2)),
-        type: isIncome ? 'income' : 'expense',
-        category,
-        description,
-        date
-      });
+    const createdUsers = [];
+    for (const userData of users) {
+      const user = await User.create(userData);
+      createdUsers.push(user);
     }
+
+    const transactionTemplates = [
+      { category: 'Housing', description: 'Rent payment', amount: 1800, type: 'expense' },
+      { category: 'Food & Drink', description: 'Weekly groceries', amount: 124.5, type: 'expense' },
+      { category: 'Transportation', description: 'Metro pass', amount: 42, type: 'expense' },
+      { category: 'Entertainment', description: 'Streaming subscription', amount: 16.99, type: 'expense' },
+      { category: 'Salary', description: 'Monthly salary', amount: 5400, type: 'income' },
+      { category: 'Freelance', description: 'Design contract', amount: 950, type: 'income' },
+      { category: 'Shopping', description: 'New laptop bag', amount: 89.95, type: 'expense' },
+      { category: 'Health', description: 'Pharmacy purchase', amount: 27.4, type: 'expense' },
+      { category: 'Utilities', description: 'Electric bill', amount: 93.2, type: 'expense' },
+      { category: 'Investment', description: 'Dividend payout', amount: 185, type: 'income' }
+    ];
+
+    const transactions = [];
+    const now = new Date();
+
+    createdUsers.forEach((user, userIndex) => {
+      for (let i = 0; i < 24; i += 1) {
+        const template = transactionTemplates[(userIndex + i) % transactionTemplates.length];
+        const daysAgo = i * 3 + (userIndex % 5) * 2;
+        const date = new Date(now.getTime() - daysAgo * 86400000);
+        const amount = Number((template.amount + (i % 3) * 18 + userIndex * 5).toFixed(2));
+        const description = `${template.description} ${i + 1}`;
+
+        transactions.push({
+          user: user._id,
+          amount,
+          type: template.type,
+          category: template.category,
+          description,
+          date
+        });
+      }
+    });
 
     await Transaction.insertMany(transactions);
 
-    console.log('🎉 Data Seeded Successfully');
+    console.log(`🎉 Seeded ${createdUsers.length} users and ${transactions.length} realistic transactions.`);
     process.exit(0);
-
   } catch (err) {
     console.error('❌ Seeding Error:', err.message);
     process.exit(1);

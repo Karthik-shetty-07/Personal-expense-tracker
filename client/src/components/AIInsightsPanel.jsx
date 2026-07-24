@@ -85,12 +85,13 @@ export default function AIInsightsPanel() {
     e.preventDefault();
     if (!chatInput.trim() || isStreaming) return;
 
-    const query = chatInput;
+    const query = chatInput.trim();
     setChatInput('');
-    addInsight({ text: query, type: 'user' });
-    
-    // Create placeholder for streaming response
-    const placeholderId = Date.now().toString();
+
+    const userMessageId = `user-${Date.now()}`;
+    addInsight({ id: userMessageId, text: query, type: 'user' });
+
+    const placeholderId = `ai-${Date.now()}`;
     addInsight({ id: placeholderId, text: '', type: 'ai', isStreaming: true });
     
     setIsStreaming(true);
@@ -125,9 +126,10 @@ export default function AIInsightsPanel() {
               const data = JSON.parse(line.slice(6));
               if (data.text) {
                 currentText += data.text;
-                setInsights(useStore.getState().insights.map(i => 
+                const nextInsights = useStore.getState().insights.map((i) => 
                   i.id === placeholderId ? { ...i, text: currentText } : i
-                ));
+                );
+                setInsights(nextInsights);
               }
             } catch (e) {
               console.error('Error parsing stream:', e);
@@ -136,15 +138,13 @@ export default function AIInsightsPanel() {
         }
       }
       
-      // Remove streaming flag
-      setInsights(useStore.getState().insights.map(i => 
+      setInsights(useStore.getState().insights.map((i) => 
         i.id === placeholderId ? { ...i, isStreaming: false } : i
       ));
       
     } catch (err) {
       setError('Failed to get answer.');
-      // Remove the streaming placeholder if it failed
-      setInsights(useStore.getState().insights.filter(i => i.id !== placeholderId));
+      setInsights(useStore.getState().insights.filter((i) => i.id !== placeholderId));
     } finally {
       setIsStreaming(false);
     }

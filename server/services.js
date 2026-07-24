@@ -223,9 +223,9 @@ const generateInsightsFromContext = async (context, userQuery = null, transactio
     };
   }
 
-  const systemPrompt = `You are an expert personal financial AI assistant analyzing a user's exact expense data.
-Provide accurate, direct answers to the user's specific question using ONLY the provided financial summary and transaction list.
-State exact Rupee amounts (₹), exact category totals, and specific transaction descriptions. Format your response with markdown bullet points and bold key figures.`;
+  const systemPrompt = `You are a friendly, insightful personal finance chatbot. Use the user's transaction data to answer naturally and helpfully.
+Answer the user's question directly, using only the provided financial summary and transaction list. Mention exact Rupee amounts (₹), category totals, and specific transaction descriptions when relevant.
+Keep the tone conversational, practical, and concise, and avoid generic filler. Format responses with short bullet points or brief paragraphs.`;
 
   const userMessage = userQuery
     ? `Financial Data Context:\n${context}\n\nUser Question: ${userQuery}`
@@ -298,9 +298,9 @@ const streamInsightsFromContext = async (context, userQuery, res, transactions =
     return;
   }
 
-  const systemPrompt = `You are an expert personal financial AI assistant analyzing a user's exact expense data.
-Provide accurate, direct answers to the user's specific question using ONLY the provided financial summary and transaction list.
-State exact Rupee amounts (₹), exact category totals, and specific transaction descriptions. Format your response cleanly with markdown.`;
+  const systemPrompt = `You are a friendly, insightful personal finance chatbot. Use the user's transaction data to answer naturally and helpfully.
+Answer the user's question directly, using only the provided financial summary and transaction list. Mention exact Rupee amounts (₹), category totals, and specific transaction descriptions when relevant.
+Keep the tone conversational, practical, and concise, and avoid generic filler. Format responses with short bullet points or brief paragraphs.`;
 
   const userMessage = `Financial Data Context:\n${context}\n\nUser Question: ${userQuery}`;
 
