@@ -208,3 +208,36 @@ Potential next steps for the project include:
 ## Summary
 
 The Personal Expense Tracker is a polished demo-ready application that combines core finance management features with AI-driven insights in a single, modern experience. It is well suited for showcasing full-stack development, real-time systems, and practical AI integration in a presentation setting.
+User
+
+↓
+
+React Frontend
+
+↓
+
+Express REST API
+
+↓
+
+JWT Authentication
+
+↓
+
+MongoDB
+
+↓
+
+LangChain
+
+↓
+
+FAISS
+
+↓
+
+Groq/OpenAI
+
+↓
+
+AI Response
